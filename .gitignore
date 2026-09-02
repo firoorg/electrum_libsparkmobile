@@ -1,0 +1,17 @@
+# Fetched dependencies (pinned in src/CMakeLists.txt, see DEPENDENCIES.md)
+src/deps/sparkmobile/
+src/deps/openssl-cmake/
+
+# Build artifacts
+build/
+src/build
+
+# IDE
+*.iml
+*.ipr
+*.iws
+.idea/
+.DS_Store
+
+# Env
+.env*
