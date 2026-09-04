@@ -52,7 +52,7 @@ function(pinned_dependency_state DIR COMMIT PATCHED OUT_STATE)
         return()
     endif()
     execute_process(
-        COMMAND ${GIT_EXECUTABLE} -C "${DIR}" status --porcelain --untracked-files=no
+        COMMAND ${GIT_EXECUTABLE} -C "${DIR}" status --porcelain --untracked-files=all
         OUTPUT_VARIABLE TREE_STATUS
         OUTPUT_STRIP_TRAILING_WHITESPACE
         RESULT_VARIABLE STATUS_RESULT

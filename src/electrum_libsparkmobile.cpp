@@ -27,10 +27,11 @@ constexpr int kLTagHashHexSize = 64;
 constexpr int kMaxAbiCount = 1 << 20;
 constexpr size_t kMaxAbiBytes = 256u * 1024u * 1024u;
 constexpr size_t kMaxAggregateAbiBytes = 512u * 1024u * 1024u;
+constexpr int kMaxSelectedInputs = 100;
+constexpr int kMaxCoverSetCoins = 32768;
+constexpr int kCoverSetRepresentationSize = 32;
 
 const char* const kUnknownError = "unknown error";
-
-constexpr int kSpendVersionV2 = 2;
 
 bool validCount(int count) {
     return count >= 0 && count <= kMaxAbiCount;
@@ -147,7 +148,7 @@ SparkSpendTransactionResult* spendError(const char* message) {
 }
 
 bool validSpendCoins(const SpendCoinData* coins, int coinsLength) {
-    if (!validCount(coinsLength)) {
+    if (coinsLength < 0 || coinsLength > kMaxSelectedInputs) {
         return false;
     }
     if (coinsLength > 0 && coins == nullptr) {
@@ -513,9 +514,6 @@ SparkSpendTransactionResult* cCreateSparkSpendTransaction(
     int idAndBlockHashesLength,
     unsigned char* txHashSig,
     int txHashSigLength,
-    int spendVersion,
-    unsigned char* extensionCommitment,
-    int extensionCommitmentLength,
     int additionalTxSize,
     int isTestNet
 ) {
@@ -527,21 +525,35 @@ SparkSpendTransactionResult* cCreateSparkSpendTransaction(
         if (!validFixedBuffer(txHashSig, txHashSigLength, kUint256Size)) {
             return spendError("tx hash signature must be 32 bytes");
         }
-        if (spendVersion != kSpendVersionV2) {
-            return spendError("only Spark V2 spends are supported");
-        }
-        if (!validFixedBuffer(extensionCommitment, extensionCommitmentLength,
-                              kUint256Size)) {
-            return spendError("extension commitment must be 32 bytes");
-        }
         if (!validCount(recipientsLength) || (recipientsLength > 0 && recipients == nullptr)
                 || !validCount(privateRecipientsLength)
                 || (privateRecipientsLength > 0 && privateRecipients == nullptr)
-                || !validCount(cover_set_data_allLength)
+                || cover_set_data_allLength < 0
+                || cover_set_data_allLength > kMaxSelectedInputs
                 || (cover_set_data_allLength > 0 && cover_set_data_all == nullptr)
-                || !validCount(idAndBlockHashesLength)
+                || idAndBlockHashesLength < 0
+                || idAndBlockHashesLength > kMaxSelectedInputs
                 || (idAndBlockHashesLength > 0 && idAndBlockHashes == nullptr)) {
             return spendError("invalid argument list");
+        }
+        for (int i = 0; i < cover_set_data_allLength; i++) {
+            if (cover_set_data_all[i].cover_setLength < 0
+                    || cover_set_data_all[i].cover_setLength > kMaxCoverSetCoins
+                    || (cover_set_data_all[i].cover_setLength > 0
+                        && cover_set_data_all[i].cover_set == nullptr)
+                    || cover_set_data_all[i].cover_set_representationLength
+                        != kCoverSetRepresentationSize
+                    || cover_set_data_all[i].cover_set_representation == nullptr
+                    || cover_set_data_all[i].setId <= 0) {
+                return spendError("invalid cover set");
+            }
+        }
+        for (int i = 0; i < idAndBlockHashesLength; i++) {
+            if (idAndBlockHashes[i].id <= 0
+                    || !validFixedBuffer(idAndBlockHashes[i].hash,
+                                         idAndBlockHashes[i].hashLength, kUint256Size)) {
+                return spendError("invalid group reference");
+            }
         }
         if (coinsLength <= 0 || !validSpendCoins(coins, coinsLength)) {
             return spendError("invalid spend coins");
@@ -595,13 +607,6 @@ SparkSpendTransactionResult* cCreateSparkSpendTransaction(
         std::unordered_map<uint64_t, spark::CoverSetData> cppCoverSetDataAll;
         size_t coverSetBytes = 0;
         for (int i = 0; i < cover_set_data_allLength; i++) {
-            if (!validCount(cover_set_data_all[i].cover_setLength)
-                    || (cover_set_data_all[i].cover_setLength > 0
-                        && cover_set_data_all[i].cover_set == nullptr)
-                    || !validBuffer(cover_set_data_all[i].cover_set_representation,
-                                    cover_set_data_all[i].cover_set_representationLength)) {
-                return spendError("invalid cover set");
-            }
             spark::CoverSetData cppCoverSetData;
             for (int j = 0; j < cover_set_data_all[i].cover_setLength; j++) {
                 const CCDataStream& entry = cover_set_data_all[i].cover_set[j];
@@ -626,10 +631,6 @@ SparkSpendTransactionResult* cCreateSparkSpendTransaction(
 
         std::map<uint64_t, uint256> cppIdAndBlockHashesAll;
         for (int i = 0; i < idAndBlockHashesLength; i++) {
-            if (!validFixedBuffer(idAndBlockHashes[i].hash,
-                                  idAndBlockHashes[i].hashLength, kUint256Size)) {
-                return spendError("block hash must be 32 bytes");
-            }
             std::vector<unsigned char> vec(idAndBlockHashes[i].hash,
                                            idAndBlockHashes[i].hash + kUint256Size);
             cppIdAndBlockHashesAll[idAndBlockHashes[i].id] = uint256(vec);
@@ -638,9 +639,7 @@ SparkSpendTransactionResult* cCreateSparkSpendTransaction(
         std::vector<unsigned char> vec(txHashSig, txHashSig + kUint256Size);
         uint256 cppTxHashSig = uint256(vec);
 
-        std::vector<unsigned char> commitmentVec(
-                extensionCommitment, extensionCommitment + kUint256Size);
-        uint256 cppExtensionCommitment = uint256(commitmentVec);
+        uint256 cppExtensionCommitment;
 
         std::vector<uint8_t> cppSerializedSpend;
         CAmount cppFee;
@@ -889,12 +888,10 @@ SparkFeeResult* estimateSparkFee(
         int coinsLength,
         int privateRecipientsLength,
         int utxoNum,
-        int additionalTxSize,
-        int spendVersion
+        int additionalTxSize
 ) {
     try {
-        if (spendVersion != kSpendVersionV2
-                || !validFixedBuffer(keyData, keyDataLength, kSpendKeyDataSize)
+        if (!validFixedBuffer(keyData, keyDataLength, kSpendKeyDataSize)
                 || !validSignedAmount(sendAmount)
                 || !validCount(privateRecipientsLength)
                 || !validCount(utxoNum)
