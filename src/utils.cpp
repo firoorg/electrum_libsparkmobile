@@ -20,27 +20,6 @@ spark::SpendKey createSpendKeyFromData(unsigned char *keyData, int index) {
     return createSpendKey(data);
 }
 
-spark::Coin coinFromCCDataStream(CCDataStream& cdStream) {
-    spark::Coin coin = deserializeCoin(cdStream.data, cdStream.length);
-    return coin;
-}
-
-CScript createCScriptFromBytes(const unsigned char* bytes, int length) {
-    CScript script;
-
-    if (bytes != nullptr && length > 0) {
-        for (int i = 0; i < length; ++i) {
-            script << bytes[i];
-        }
-    }
-
-    return script;
-}
-
-std::vector<unsigned char> serializeCScript(const CScript& script) {
-    return std::vector<unsigned char>(script.begin(), script.end());
-}
-
 bool isValidAddressPoint(const secp_primitives::GroupElement& point) {
     return point.isMember() && !point.isInfinity();
 }

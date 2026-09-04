@@ -45,8 +45,6 @@ public:
     void SetNull() { hash.SetNull(); n = (uint32_t) -1; }
     bool IsNull() const { return (hash.IsNull() && n == (uint32_t) -1); }
 
-    bool IsSigmaMintGroup() const { return hash.IsNull() && n >= 1; }
-
     friend bool operator<(const COutPoint& a, const COutPoint& b)
     {
         int cmp = a.hash.Compare(b.hash);
@@ -119,95 +117,6 @@ public:
     {
         return a.prevout<b.prevout;
     }
-
-    std::string ToString() const;
-    bool IsZerocoinSpend() const;
-    bool IsSigmaSpend() const;
-    bool IsLelantusJoinSplit() const;
-    bool IsZerocoinRemint() const;
-};
-
-class CTxOut
-{
-public:
-    CAmount nValue;
-    CScript scriptPubKey;
-    int nRounds;
-
-    CTxOut()
-    {
-        SetNull();
-    }
-
-    CTxOut(const CAmount& nValueIn, CScript scriptPubKeyIn);
-
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(nValue);
-        READWRITE(*(CScriptBase*)(&scriptPubKey));
-        if (ser_action.ForRead())
-            nRounds = -10;
-    }
-
-    void SetNull()
-    {
-        nValue = -1;
-        scriptPubKey.clear();
-        nRounds = -10;
-    }
-
-    bool IsNull() const
-    {
-        return (nValue == -1);
-    }
-
-    CAmount GetDustThreshold(const CFeeRate &minRelayTxFee) const
-    {
-        if (scriptPubKey.IsUnspendable())
-            return 0;
-
-        size_t nSize = GetSerializeSize(*this, SER_DISK, 0);
-        int witnessversion = 0;
-        std::vector<unsigned char> witnessprogram;
-
-        if (scriptPubKey.IsWitnessProgram(witnessversion, witnessprogram)) {
-            nSize += (32 + 4 + 1 + (107 / WITNESS_SCALE_FACTOR) + 4);
-        } else {
-            nSize += (32 + 4 + 1 + 107 + 4);
-        }
-
-        return 3 * minRelayTxFee.GetFee(nSize);
-    }
-
-    bool IsDust() const
-    {
-        return false;
-    }
-
-    bool IsDust(const CFeeRate &minRelayTxFee) const
-    {
-        return false;
-    }
-
-    friend bool operator==(const CTxOut& a, const CTxOut& b)
-    {
-        return (a.nValue       == b.nValue &&
-                a.scriptPubKey == b.scriptPubKey);
-    }
-
-    friend bool operator!=(const CTxOut& a, const CTxOut& b)
-    {
-        return !(a == b);
-    }
-
-    friend bool operator<(const CTxOut& a, const CTxOut& b)
-    {
-        return a.nValue < b.nValue || (a.nValue == b.nValue && a.scriptPubKey < b.scriptPubKey);
-    }
-
-    uint256 GetHash() const { return SerializeHash(*this); }
 
     std::string ToString() const;
 };

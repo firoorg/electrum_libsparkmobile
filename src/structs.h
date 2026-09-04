@@ -76,6 +76,8 @@ struct AggregateCoinData {
     int nonceHexLength;
 };
 
+struct UsedCoin;
+
 struct SparkSpendTransactionResult {
     unsigned char *data;
     int dataLength;

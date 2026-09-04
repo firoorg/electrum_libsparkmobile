@@ -11,12 +11,6 @@
 
 spark::SpendKey createSpendKeyFromData(unsigned char *keyData, int index);
 
-spark::Coin coinFromCCDataStream(CCDataStream& cdStream);
-
-CScript createCScriptFromBytes(const unsigned char* bytes, int length);
-
-std::vector<unsigned char> serializeCScript(const CScript& script);
-
 bool isValidAddressPoint(const secp_primitives::GroupElement& point);
 
 void requireValidAddressPoints(const spark::Address& address);
