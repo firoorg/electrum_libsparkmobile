@@ -142,11 +142,6 @@ endfunction()
 
 find_package(Git REQUIRED)
 
-# Following upstream instead of the pin: configure with
-#   -DSPARKMOBILE_GIT_REF=HEAD        (the default branch, currently "main")
-# The branch is resolved to a concrete commit here, and that commit then goes
-# through the same fetch-and-verify path as a pin, so the build still records
-# and checks exactly what it built. Leave empty for reproducible builds.
 set(SPARKMOBILE_GIT_REF "" CACHE STRING
     "Upstream branch to follow instead of SPARKMOBILE_GIT_COMMIT")
 

@@ -82,6 +82,7 @@ struct SparkSpendTransactionResult* cCreateSparkSpendTransaction(
         int idAndBlockHashesLength,
         unsigned char* txHashSig,
         int txHashSigLength,
+        int spendVersion,
         unsigned char* extensionCommitment,
         int extensionCommitmentLength,
         int additionalTxSize,
@@ -117,7 +118,8 @@ struct SparkFeeResult* estimateSparkFee(
         int coinsLength,
         int privateRecipientsLength,
         int utxoNum,
-        int additionalTxSize
+        int additionalTxSize,
+        int spendVersion
 );
 
 SPARK_EXPORT

@@ -26,8 +26,11 @@ constexpr int kLTagHashHexSize = 64;
 
 constexpr int kMaxAbiCount = 1 << 20;
 constexpr size_t kMaxAbiBytes = 256u * 1024u * 1024u;
+constexpr size_t kMaxAggregateAbiBytes = 512u * 1024u * 1024u;
 
 const char* const kUnknownError = "unknown error";
+
+constexpr int kSpendVersionV2 = 2;
 
 bool validCount(int count) {
     return count >= 0 && count <= kMaxAbiCount;
@@ -150,6 +153,7 @@ bool validSpendCoins(const SpendCoinData* coins, int coinsLength) {
     if (coinsLength > 0 && coins == nullptr) {
         return false;
     }
+    size_t declaredBytes = 0;
     for (int i = 0; i < coinsLength; i++) {
         if (coins[i].serializedCoin == nullptr
                 || coins[i].serializedCoinContext == nullptr) {
@@ -161,6 +165,11 @@ bool validSpendCoins(const SpendCoinData* coins, int coinsLength) {
         }
         if (!validBuffer(coins[i].serializedCoinContext->data,
                          coins[i].serializedCoinContext->length)) {
+            return false;
+        }
+        declaredBytes += static_cast<size_t>(coins[i].serializedCoin->length)
+                + static_cast<size_t>(coins[i].serializedCoinContext->length);
+        if (declaredBytes > kMaxAggregateAbiBytes) {
             return false;
         }
     }
@@ -504,6 +513,7 @@ SparkSpendTransactionResult* cCreateSparkSpendTransaction(
     int idAndBlockHashesLength,
     unsigned char* txHashSig,
     int txHashSigLength,
+    int spendVersion,
     unsigned char* extensionCommitment,
     int extensionCommitmentLength,
     int additionalTxSize,
@@ -516,6 +526,9 @@ SparkSpendTransactionResult* cCreateSparkSpendTransaction(
         }
         if (!validFixedBuffer(txHashSig, txHashSigLength, kUint256Size)) {
             return spendError("tx hash signature must be 32 bytes");
+        }
+        if (spendVersion != kSpendVersionV2) {
+            return spendError("only Spark V2 spends are supported");
         }
         if (!validFixedBuffer(extensionCommitment, extensionCommitmentLength,
                               kUint256Size)) {
@@ -580,6 +593,7 @@ SparkSpendTransactionResult* cCreateSparkSpendTransaction(
         }
 
         std::unordered_map<uint64_t, spark::CoverSetData> cppCoverSetDataAll;
+        size_t coverSetBytes = 0;
         for (int i = 0; i < cover_set_data_allLength; i++) {
             if (!validCount(cover_set_data_all[i].cover_setLength)
                     || (cover_set_data_all[i].cover_setLength > 0
@@ -594,8 +608,17 @@ SparkSpendTransactionResult* cCreateSparkSpendTransaction(
                 if (!validBuffer(entry.data, entry.length) || entry.length <= 0) {
                     return spendError("invalid cover set coin");
                 }
+                coverSetBytes += static_cast<size_t>(entry.length);
+                if (coverSetBytes > kMaxAggregateAbiBytes) {
+                    return spendError("cover sets are too large");
+                }
                 spark::Coin coin = deserializeCoin(entry.data, entry.length);
                 cppCoverSetData.cover_set.push_back(coin);
+            }
+            coverSetBytes += static_cast<size_t>(
+                    cover_set_data_all[i].cover_set_representationLength);
+            if (coverSetBytes > kMaxAggregateAbiBytes) {
+                return spendError("cover sets are too large");
             }
             cppCoverSetData.cover_set_representation = std::vector<unsigned char>(cover_set_data_all[i].cover_set_representation, cover_set_data_all[i].cover_set_representation + cover_set_data_all[i].cover_set_representationLength);
             cppCoverSetDataAll[cover_set_data_all[i].setId] = cppCoverSetData;
@@ -866,10 +889,12 @@ SparkFeeResult* estimateSparkFee(
         int coinsLength,
         int privateRecipientsLength,
         int utxoNum,
-        int additionalTxSize
+        int additionalTxSize,
+        int spendVersion
 ) {
     try {
-        if (!validFixedBuffer(keyData, keyDataLength, kSpendKeyDataSize)
+        if (spendVersion != kSpendVersionV2
+                || !validFixedBuffer(keyData, keyDataLength, kSpendKeyDataSize)
                 || !validSignedAmount(sendAmount)
                 || !validCount(privateRecipientsLength)
                 || !validCount(utxoNum)

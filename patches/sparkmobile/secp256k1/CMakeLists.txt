@@ -21,10 +21,6 @@ include_directories(. include src/modules/ecdh src)
 
 add_library(secp256k1_spark src/secp256k1.c src/cpp/GroupElement.cpp src/cpp/MultiExponent.cpp src/cpp/Scalar.cpp src/modules/ecdh/main_impl.h include/secp256k1_ecdh.h src/scratch_impl.h src/scratch.h)
 
-# GMP is deliberately not used. Linking it depended on whether the build
-# machine happened to have it installed, which made binaries differ between
-# machines and pulled an LGPL dependency into the wallet. The builtin field and
-# scalar inversion are used unconditionally, as in upstream's own build.
 target_compile_definitions(secp256k1_spark
 	PUBLIC
 		USE_NUM_NONE
