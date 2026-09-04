@@ -24,6 +24,8 @@ void requireValidAddressPoints(const spark::Address& address);
 spark::Address decodeAddress(const std::string& str);
 spark::Address decodeAddress(const std::string& str, unsigned char expectedNetwork);
 
+const int kMaxSerializedCoinSize = 64 * 1024;
+
 spark::Coin deserializeCoin(const unsigned char *serializedCoin, int length);
 
 #endif

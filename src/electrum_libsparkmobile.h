@@ -82,6 +82,8 @@ struct SparkSpendTransactionResult* cCreateSparkSpendTransaction(
         int idAndBlockHashesLength,
         unsigned char* txHashSig,
         int txHashSigLength,
+        unsigned char* extensionCommitment,
+        int extensionCommitmentLength,
         int additionalTxSize,
         int isTestNet
 );
@@ -116,21 +118,6 @@ struct SparkFeeResult* estimateSparkFee(
         int privateRecipientsLength,
         int utxoNum,
         int additionalTxSize
-);
-
-SPARK_EXPORT
-struct SparkNameScript* createSparkNameScript(
-        int sparkNameValidityBlocks,
-        const char* name,
-        const char* additionalInfo,
-        const char* scalarMHex,
-        unsigned char* spendKeyData,
-        int spendKeyDataLength,
-        int spendKeyIndex,
-        int diversifier,
-        int isTestNet,
-        int hashFailSafe,
-        int withoutProof
 );
 
 SPARK_EXPORT

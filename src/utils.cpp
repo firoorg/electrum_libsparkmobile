@@ -76,8 +76,11 @@ spark::Coin deserializeCoin(const unsigned char *serializedCoin, int length) {
     if (serializedCoin == nullptr || length <= 0) {
         throw std::invalid_argument("serialized coin must not be empty");
     }
-    std::vector<unsigned char> vec(serializedCoin, serializedCoin + length);
-    CDataStream stream(vec, SER_NETWORK, PROTOCOL_VERSION);
+    if (length > kMaxSerializedCoinSize) {
+        throw std::invalid_argument("serialized coin is too large");
+    }
+    const char* begin = reinterpret_cast<const char*>(serializedCoin);
+    CDataStream stream(begin, begin + length, SER_NETWORK, PROTOCOL_VERSION);
     spark::Coin coin(spark::Params::get_default());
     stream >> coin;
     return coin;

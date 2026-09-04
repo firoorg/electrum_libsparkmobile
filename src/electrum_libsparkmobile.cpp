@@ -1,7 +1,6 @@
 #include "electrum_libsparkmobile.h"
 #include "utils.h"
 #include "deps/sparkmobile/include/spark.h"
-#include "deps/sparkmobile/src/sparkname.h"
 #include "deps/sparkmobile/bitcoin/uint256.h"
 #include "structs.h"
 #include "transaction.h"
@@ -166,6 +165,14 @@ bool validSpendCoins(const SpendCoinData* coins, int coinsLength) {
         }
     }
     return true;
+}
+
+bool validAmount(uint64_t value) {
+    return value > 0 && value <= static_cast<uint64_t>(MAX_MONEY);
+}
+
+bool validSignedAmount(int64_t value) {
+    return value >= 0 && value <= MAX_MONEY;
 }
 
 unsigned char addressNetwork(int isTestNet) {
@@ -431,7 +438,8 @@ CCRecipientList* cCreateSparkMintRecipients(
         outputs.reserve(static_cast<size_t>(outputsLength));
 
         for (int i = 0; i < outputsLength; i++) {
-            if (cOutputs[i].address == nullptr) {
+            if (cOutputs[i].address == nullptr
+                    || !validAmount(cOutputs[i].value)) {
                 return nullptr;
             }
             spark::MintedCoinData mintedCoinData;
@@ -496,6 +504,8 @@ SparkSpendTransactionResult* cCreateSparkSpendTransaction(
     int idAndBlockHashesLength,
     unsigned char* txHashSig,
     int txHashSigLength,
+    unsigned char* extensionCommitment,
+    int extensionCommitmentLength,
     int additionalTxSize,
     int isTestNet
 ) {
@@ -506,6 +516,10 @@ SparkSpendTransactionResult* cCreateSparkSpendTransaction(
         }
         if (!validFixedBuffer(txHashSig, txHashSigLength, kUint256Size)) {
             return spendError("tx hash signature must be 32 bytes");
+        }
+        if (!validFixedBuffer(extensionCommitment, extensionCommitmentLength,
+                              kUint256Size)) {
+            return spendError("extension commitment must be 32 bytes");
         }
         if (!validCount(recipientsLength) || (recipientsLength > 0 && recipients == nullptr)
                 || !validCount(privateRecipientsLength)
@@ -528,6 +542,9 @@ SparkSpendTransactionResult* cCreateSparkSpendTransaction(
 
         std::vector<std::pair<CAmount, bool>> cppRecipients;
         for (int i = 0; i < recipientsLength; i++) {
+            if (!validAmount(recipients[i].amount)) {
+                return spendError("recipient amount out of range");
+            }
             cppRecipients.push_back(std::make_pair(recipients[i].amount, recipients[i].subtractFee));
         }
 
@@ -537,7 +554,8 @@ SparkSpendTransactionResult* cCreateSparkSpendTransaction(
             if (output == nullptr
                     || !validBuffer(output->address, output->addressLength)
                     || output->addressLength <= 0
-                    || !validBuffer(output->memo, output->memoLength)) {
+                    || !validBuffer(output->memo, output->memoLength)
+                    || !validAmount(output->value)) {
                 return spendError("invalid private recipient");
             }
             spark::OutputCoinData outputCoinData;
@@ -597,6 +615,10 @@ SparkSpendTransactionResult* cCreateSparkSpendTransaction(
         std::vector<unsigned char> vec(txHashSig, txHashSig + kUint256Size);
         uint256 cppTxHashSig = uint256(vec);
 
+        std::vector<unsigned char> commitmentVec(
+                extensionCommitment, extensionCommitment + kUint256Size);
+        uint256 cppExtensionCommitment = uint256(commitmentVec);
+
         std::vector<uint8_t> cppSerializedSpend;
         CAmount cppFee;
         std::vector<std::vector<unsigned char>> cppOutputScripts;
@@ -614,6 +636,8 @@ SparkSpendTransactionResult* cCreateSparkSpendTransaction(
             cppIdAndBlockHashesAll,
             cppTxHashSig,
             additionalTxSize,
+            spark::SpendTransactionVersion::V2,
+            cppExtensionCommitment,
             cppFee,
             cppSerializedSpend,
             cppOutputScripts,
@@ -717,7 +741,8 @@ SerializedMintContextResult* serializeMintContext(
         CDataStream serialContextStream(SER_NETWORK, PROTOCOL_VERSION);
         for (int i = 0; i < inputsLength; i++) {
 
-            if (!validFixedBuffer(inputs[i].txHash, inputs[i].txHashLength, kUint256Size)) {
+            if (!validFixedBuffer(inputs[i].txHash, inputs[i].txHashLength, kUint256Size)
+                    || inputs[i].vout < 0) {
                 return nullptr;
             }
             std::vector<unsigned char> vec(inputs[i].txHash, inputs[i].txHash + kUint256Size);
@@ -845,6 +870,10 @@ SparkFeeResult* estimateSparkFee(
 ) {
     try {
         if (!validFixedBuffer(keyData, keyDataLength, kSpendKeyDataSize)
+                || !validSignedAmount(sendAmount)
+                || !validCount(privateRecipientsLength)
+                || !validCount(utxoNum)
+                || additionalTxSize < 0
                 || !validSpendCoins(coins, coinsLength)) {
             SparkFeeResult* result = abiAllocArray<SparkFeeResult>(1);
             if (result == nullptr) {
@@ -876,7 +905,8 @@ SparkFeeResult* estimateSparkFee(
                 cppCoins,
                 privateRecipientsLength,
                 utxoNum,
-                additionalTxSize
+                additionalTxSize,
+                spark::SpendTransactionVersion::V2
         );
 
         SparkFeeResult* result = abiAllocArray<SparkFeeResult>(1);
@@ -902,107 +932,6 @@ SparkFeeResult* estimateSparkFee(
             return nullptr;
         }
         result->fee = 0;
-        result->error = abiStrdup(kUnknownError);
-
-        return result;
-    }
-}
-
-SPARK_EXPORT
-SparkNameScript* createSparkNameScript(
-        int sparkNameValidityBlocks,
-        const char* name,
-        const char* additionalInfo,
-        const char* scalarMHex,
-        unsigned char* spendKeyData,
-        int spendKeyDataLength,
-        int spendKeyIndex,
-        int diversifier,
-        int isTestNet,
-        int hashFailSafe,
-        int withoutProof
-) {
-    try {
-        if (!validFixedBuffer(spendKeyData, spendKeyDataLength, kSpendKeyDataSize)
-                || name == nullptr || additionalInfo == nullptr
-                || (!withoutProof && scalarMHex == nullptr)) {
-            SparkNameScript* result = abiAllocArray<SparkNameScript>(1);
-            if (result == nullptr) {
-                return nullptr;
-            }
-            result->error = abiStrdup("invalid arguments");
-            return result;
-        }
-
-        spark::SpendKey spendKey = createSpendKeyFromData(spendKeyData, spendKeyIndex);
-        spark::FullViewKey fullViewKey(spendKey);
-        spark::IncomingViewKey incomingViewKey(fullViewKey);
-
-        std::string nameString(name);
-        std::string infoString(additionalInfo);
-
-        spark::CSparkNameTxData nameTxData;
-        nameTxData.name = nameString;
-        nameTxData.sparkAddress = getAddress(incomingViewKey, diversifier).encode(addressNetwork(isTestNet));
-        nameTxData.sparkNameValidityBlocks = static_cast<uint32_t>(sparkNameValidityBlocks);
-        nameTxData.additionalInfo = infoString;
-        nameTxData.hashFailsafe = hashFailSafe;
-
-        std::vector<unsigned char> outputScript;
-        if (withoutProof) {
-            outputScript.clear();
-            nameTxData.addressOwnershipProof.clear();
-            CDataStream sparkNameDataStream(SER_NETWORK, PROTOCOL_VERSION);
-            sparkNameDataStream << nameTxData;
-            outputScript.insert(outputScript.end(), sparkNameDataStream.begin(), sparkNameDataStream.end());
-        } else {
-            std::string mHex(scalarMHex);
-            Scalar m;
-            try {
-                m.SetHex(mHex);
-            } catch (...) {
-                SparkNameScript* result = abiAllocArray<SparkNameScript>(1);
-                if (result == nullptr) {
-                    return nullptr;
-                }
-                result->error = abiStrdup("hash fail");
-
-                return result;
-            }
-            GetSparkNameScript(nameTxData, m, spendKey, incomingViewKey, outputScript);
-        }
-
-        std::size_t sparkNameTxDataSize = getSparkNameTxDataSize(nameTxData);
-
-        SparkNameScript* result = abiAllocArray<SparkNameScript>(1);
-        if (result == nullptr) {
-            return nullptr;
-        }
-
-        result->script = static_cast<unsigned char*>(abiAlloc(outputScript.size(), 1));
-        if (result->script == nullptr) {
-            free(result);
-            return nullptr;
-        }
-        result->scriptLength = static_cast<int>(outputScript.size());
-        result->size = static_cast<int>(sparkNameTxDataSize);
-
-        memcpy(result->script, outputScript.data(), outputScript.size());
-
-        return result;
-    } catch (const std::exception& e) {
-        SparkNameScript* result = abiAllocArray<SparkNameScript>(1);
-        if (result == nullptr) {
-            return nullptr;
-        }
-        result->error = abiStrdup(e.what());
-
-        return result;
-    } catch (...) {
-        SparkNameScript* result = abiAllocArray<SparkNameScript>(1);
-        if (result == nullptr) {
-            return nullptr;
-        }
         result->error = abiStrdup(kUnknownError);
 
         return result;

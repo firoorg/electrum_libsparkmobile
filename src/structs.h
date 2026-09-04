@@ -133,11 +133,4 @@ struct UsedCoin {
     int height;
 };
 
-struct SparkNameScript {
-    unsigned char* script;
-    int scriptLength;
-    char *error;
-    int size;
-};
-
 #endif

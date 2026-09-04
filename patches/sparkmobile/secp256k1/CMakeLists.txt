@@ -21,26 +21,16 @@ include_directories(. include src/modules/ecdh src)
 
 add_library(secp256k1_spark src/secp256k1.c src/cpp/GroupElement.cpp src/cpp/MultiExponent.cpp src/cpp/Scalar.cpp src/modules/ecdh/main_impl.h include/secp256k1_ecdh.h src/scratch_impl.h src/scratch.h)
 
-# We need to link in GMP
-find_package(GMP)
-if(GMP_INCLUDE_DIR AND GMP_LIBRARIES)
-	target_include_directories(secp256k1 PUBLIC ${GMP_INCLUDE_DIR})
-	target_link_libraries(secp256k1_spark ${GMP_LIBRARIES})
-	target_compile_definitions(secp256k1_spark
-		PUBLIC
-			HAVE_LIBGMP
-			USE_NUM_GMP
-			USE_FIELD_INV_NUM
-			USE_SCALAR_INV_BUILTIN
-	)
-else()
-	target_compile_definitions(secp256k1_spark
-		PUBLIC
-			USE_NUM_NONE
-			USE_FIELD_INV_BUILTIN
-			USE_SCALAR_INV_BUILTIN
-	)
-endif()
+# GMP is deliberately not used. Linking it depended on whether the build
+# machine happened to have it installed, which made binaries differ between
+# machines and pulled an LGPL dependency into the wallet. The builtin field and
+# scalar inversion are used unconditionally, as in upstream's own build.
+target_compile_definitions(secp256k1_spark
+	PUBLIC
+		USE_NUM_NONE
+		USE_FIELD_INV_BUILTIN
+		USE_SCALAR_INV_BUILTIN
+)
 
 # We make sure __int128 is defined
 include(CheckTypeSize)

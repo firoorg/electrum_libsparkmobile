@@ -6,8 +6,6 @@ if(BUILD_FOR_SYSTEM_NAME STREQUAL "linux")
     ADD_DEFINITIONS(-fPIC)
 endif()
 
-SET(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake;${CMAKE_MODULE_PATH}")
-
 if(BUILD_FOR_SYSTEM_NAME STREQUAL "macos" OR BUILD_FOR_SYSTEM_NAME STREQUAL "windows")
     set(CMAKE_CXX_STANDARD 17)
 endif()
@@ -30,7 +28,7 @@ set(SPARKMOBILE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/sparkmobile")
 set(OPENSSL_CMAKE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/openssl-cmake")
 
 set(SPARKMOBILE_GIT_URL "https://github.com/firoorg/sparkmobile.git")
-set(SPARKMOBILE_GIT_COMMIT "3279f041c389e0b0c10ddcef2ba04ede3feac27d")
+set(SPARKMOBILE_GIT_COMMIT "a9d078955312b3467f5bb14cbd64ab2ed8852256")
 set(OPENSSL_CMAKE_GIT_URL "https://github.com/janbar/openssl-cmake.git")
 set(OPENSSL_CMAKE_GIT_COMMIT "b0ac69581958cd658364147da9057da89a01c394")
 
@@ -143,6 +141,33 @@ function(fetch_pinned_dependency NAME URL COMMIT DIR PATCHED)
 endfunction()
 
 find_package(Git REQUIRED)
+
+# Following upstream instead of the pin: configure with
+#   -DSPARKMOBILE_GIT_REF=HEAD        (the default branch, currently "main")
+# The branch is resolved to a concrete commit here, and that commit then goes
+# through the same fetch-and-verify path as a pin, so the build still records
+# and checks exactly what it built. Leave empty for reproducible builds.
+set(SPARKMOBILE_GIT_REF "" CACHE STRING
+    "Upstream branch to follow instead of SPARKMOBILE_GIT_COMMIT")
+
+if(NOT SPARKMOBILE_GIT_REF STREQUAL "")
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} ls-remote "${SPARKMOBILE_GIT_URL}" "${SPARKMOBILE_GIT_REF}"
+        OUTPUT_VARIABLE SPARKMOBILE_LS_REMOTE
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE SPARKMOBILE_LS_REMOTE_RESULT
+    )
+    if(NOT SPARKMOBILE_LS_REMOTE_RESULT EQUAL 0 OR SPARKMOBILE_LS_REMOTE STREQUAL "")
+        message(FATAL_ERROR
+            "sparkmobile: could not resolve ref '${SPARKMOBILE_GIT_REF}'")
+    endif()
+    string(SUBSTRING "${SPARKMOBILE_LS_REMOTE}" 0 40 SPARKMOBILE_GIT_COMMIT)
+    message(WARNING
+        "sparkmobile: following '${SPARKMOBILE_GIT_REF}', resolved to "
+        "${SPARKMOBILE_GIT_COMMIT}. This build is not reproducible; pin this "
+        "commit in src/CMakeLists.txt and DEPENDENCIES.md before releasing.")
+endif()
+
 fetch_pinned_dependency("sparkmobile" "${SPARKMOBILE_GIT_URL}" "${SPARKMOBILE_GIT_COMMIT}"
                         "${SPARKMOBILE_DIR}" "${SPARKMOBILE_PATCHED_FILES}")
 fetch_pinned_dependency("openssl-cmake" "${OPENSSL_CMAKE_GIT_URL}" "${OPENSSL_CMAKE_GIT_COMMIT}"
@@ -178,7 +203,11 @@ if(NOT MSVC)
     )
     if(BUILD_FOR_SYSTEM_NAME STREQUAL "linux")
         target_link_options(electrum_libsparkmobile PRIVATE
-            "-Wl,-z,relro" "-Wl,-z,now" "-Wl,--as-needed")
+            "-Wl,-z,relro" "-Wl,-z,now" "-Wl,--as-needed"
+            "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/exports.map")
+    elseif(BUILD_FOR_SYSTEM_NAME STREQUAL "macos")
+        target_link_options(electrum_libsparkmobile PRIVATE
+            "-Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/exports.symbols")
     endif()
 endif()
 
