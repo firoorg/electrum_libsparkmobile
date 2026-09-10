@@ -64,7 +64,7 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Copyright 2023-2024 Cypher Stack LLC (sparkmobile).
+Copyright (c) 2022 Firo (sparkmobile).
 Copyright (c) 2013-2023 The Bitcoin Core developers, the Firo Core developers
 and Pieter Wuille (secp256k1 and the transaction primitives).
 

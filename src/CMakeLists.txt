@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.13)
 
 project(electrum_libsparkmobile_library VERSION 0.0.1)
 
@@ -52,7 +52,7 @@ function(pinned_dependency_state DIR COMMIT PATCHED OUT_STATE)
         return()
     endif()
     execute_process(
-        COMMAND ${GIT_EXECUTABLE} -C "${DIR}" status --porcelain --untracked-files=all
+        COMMAND ${GIT_EXECUTABLE} -C "${DIR}" status --porcelain --untracked-files=all --ignored=matching
         OUTPUT_VARIABLE TREE_STATUS
         OUTPUT_STRIP_TRAILING_WHITESPACE
         RESULT_VARIABLE STATUS_RESULT
