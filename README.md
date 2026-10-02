@@ -65,18 +65,27 @@ in the same commit; the two sides are one contract.
 
 ## Tests
 
-The ABI regression tests live with the caller, in
-`electrum_dash/tests/test_libsparkmobile.py` of the Electrum-Firo repository,
-because they exercise the Python binding and the native library together:
+`src/tests/abi_test.c` links against the built shared library and checks
+the exported ABI directly: more candidate coins than one spend may select
+(101, one selected), coins whose length prefixes declare more data than they
+carry, and argument guards. Run it after a build:
 
 ```bash
-python3 -m unittest electrum_dash.tests.test_libsparkmobile
+ctest --test-dir src/build --output-on-failure --no-tests=error
 ```
 
-They cover address validation (including a constructed infinity-point address),
-the length and exception guards on the ABI, the allocator ownership contract,
-and the mint serial-context invariant. There is no in-repo C++ test target or
-fuzz harness yet.
+The `ABI tests` workflow runs it on Linux and macOS and cross-builds the
+Windows DLL for both architectures, failing if the DLL imports a MinGW
+runtime. Make that workflow a required status check for this repository.
+
+The binding-level tests live with the caller, in
+`electrum_dash/tests/test_libsparkmobile.py` of Electrum-Firo, and run in its
+`Spark tests` workflow with `ELECTRUM_REQUIRE_LIBSPARKMOBILE=1`, so they fail
+instead of skipping when the library cannot be loaded:
+
+```bash
+ELECTRUM_REQUIRE_LIBSPARKMOBILE=1 python3 -m unittest electrum_dash.tests.test_libsparkmobile
+```
 
 ## Known open items
 

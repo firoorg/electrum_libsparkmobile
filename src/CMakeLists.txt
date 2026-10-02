@@ -203,6 +203,26 @@ if(NOT MSVC)
     elseif(BUILD_FOR_SYSTEM_NAME STREQUAL "macos")
         target_link_options(electrum_libsparkmobile PRIVATE
             "-Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/exports.symbols")
+    elseif(BUILD_FOR_SYSTEM_NAME STREQUAL "windows" AND MINGW)
+        target_link_options(electrum_libsparkmobile PRIVATE
+            "-static" "-static-libgcc" "-static-libstdc++")
     endif()
 endif()
 
+if(BUILD_FOR_SYSTEM_NAME STREQUAL "windows" AND MINGW)
+    if(CMAKE_OBJDUMP)
+        add_custom_command(TARGET electrum_libsparkmobile POST_BUILD
+            COMMAND ${CMAKE_COMMAND}
+                -DOBJDUMP=${CMAKE_OBJDUMP}
+                -DDLL=$<TARGET_FILE:electrum_libsparkmobile>
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/check_windows_imports.cmake
+            VERBATIM)
+    endif()
+endif()
+
+include(CTest)
+if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
+    add_executable(electrum_libsparkmobile_abi_test tests/abi_test.c)
+    target_link_libraries(electrum_libsparkmobile_abi_test electrum_libsparkmobile)
+    add_test(NAME abi_test COMMAND electrum_libsparkmobile_abi_test)
+endif()

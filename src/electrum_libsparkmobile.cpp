@@ -27,7 +27,8 @@ constexpr int kLTagHashHexSize = 64;
 constexpr int kMaxAbiCount = 1 << 20;
 constexpr size_t kMaxAbiBytes = 256u * 1024u * 1024u;
 constexpr size_t kMaxAggregateAbiBytes = 512u * 1024u * 1024u;
-constexpr int kMaxSelectedInputs = 100;
+constexpr int kMaxCandidateCoins = 1 << 16;
+constexpr int kMaxCandidateGroups = 1 << 12;
 constexpr int kMaxCoverSetCoins = 32768;
 constexpr int kCoverSetRepresentationSize = 32;
 
@@ -148,7 +149,7 @@ SparkSpendTransactionResult* spendError(const char* message) {
 }
 
 bool validSpendCoins(const SpendCoinData* coins, int coinsLength) {
-    if (coinsLength < 0 || coinsLength > kMaxSelectedInputs) {
+    if (coinsLength < 0 || coinsLength > kMaxCandidateCoins) {
         return false;
     }
     if (coinsLength > 0 && coins == nullptr) {
@@ -216,7 +217,7 @@ const char* getAddress(unsigned char* keyData, int keyDataLength, int index, int
 SPARK_EXPORT
 const char* getAddressFromFullViewKey(void* fullViewKeyVoid, int index, int diversifier, int isTestNet) {
     try {
-        if (fullViewKeyVoid == nullptr) {
+        if (fullViewKeyVoid == nullptr || diversifier < 0) {
             return nullptr;
         }
         spark::IncomingViewKey incomingViewKey(*static_cast<spark::FullViewKey*>(fullViewKeyVoid));
@@ -527,12 +528,13 @@ SparkSpendTransactionResult* cCreateSparkSpendTransaction(
         }
         if (!validCount(recipientsLength) || (recipientsLength > 0 && recipients == nullptr)
                 || !validCount(privateRecipientsLength)
+                || privateRecipientsLength >= SPARK_OUT_LIMIT_PER_TX - 1
                 || (privateRecipientsLength > 0 && privateRecipients == nullptr)
                 || cover_set_data_allLength < 0
-                || cover_set_data_allLength > kMaxSelectedInputs
+                || cover_set_data_allLength > kMaxCandidateGroups
                 || (cover_set_data_allLength > 0 && cover_set_data_all == nullptr)
                 || idAndBlockHashesLength < 0
-                || idAndBlockHashesLength > kMaxSelectedInputs
+                || idAndBlockHashesLength > kMaxCandidateGroups
                 || (idAndBlockHashesLength > 0 && idAndBlockHashes == nullptr)) {
             return spendError("invalid argument list");
         }
@@ -894,6 +896,7 @@ SparkFeeResult* estimateSparkFee(
         if (!validFixedBuffer(keyData, keyDataLength, kSpendKeyDataSize)
                 || !validSignedAmount(sendAmount)
                 || !validCount(privateRecipientsLength)
+                || privateRecipientsLength >= SPARK_OUT_LIMIT_PER_TX - 1
                 || !validCount(utxoNum)
                 || additionalTxSize < 0
                 || !validSpendCoins(coins, coinsLength)) {

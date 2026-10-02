@@ -1,0 +1,12 @@
+execute_process(COMMAND ${OBJDUMP} -p ${DLL}
+    OUTPUT_VARIABLE imports RESULT_VARIABLE rc)
+if(NOT rc EQUAL 0)
+    message(FATAL_ERROR "objdump failed on ${DLL}")
+endif()
+string(REGEX MATCHALL "DLL Name: [^\r\n]+" names "${imports}")
+foreach(name IN LISTS names)
+    message(STATUS "${name}")
+    if(name MATCHES "(libstdc\\+\\+|libgcc_s|libssp|libwinpthread)")
+        message(FATAL_ERROR "electrum_libsparkmobile imports a MinGW runtime: ${name}")
+    endif()
+endforeach()
