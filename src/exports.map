@@ -1,0 +1,21 @@
+{
+    global:
+        getFullViewKeyFromPrivateKeyData;
+        deserializeFullViewKey;
+        serializeFullViewKey;
+        deleteFullViewKey;
+        getAddress;
+        getAddressFromFullViewKey;
+        idAndRecoverCoin;
+        idAndRecoverCoinByFullViewKey;
+        cCreateSparkMintRecipients;
+        cCreateSparkSpendTransaction;
+        serializeMintContext;
+        isValidSparkAddress;
+        hashTags;
+        hashTag;
+        estimateSparkFee;
+        native_free;
+    local:
+        *;
+};

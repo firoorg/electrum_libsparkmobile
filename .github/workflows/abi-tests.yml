@@ -1,0 +1,61 @@
+name: ABI tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ctest:
+    name: Build and ctest (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: |
+          case "$RUNNER_OS" in
+            Linux) system=linux ;;
+            macOS) system=macos ;;
+          esac
+          cmake -S src -B src/build -DBUILD_FOR_SYSTEM_NAME=$system \
+            -DCMAKE_CXX_STANDARD=17 -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build src/build --config Release -j4
+      - name: Run ABI tests
+        run: ctest --test-dir src/build --output-on-failure --no-tests=error
+
+  windows-cross:
+    name: MinGW cross build (${{ matrix.triplet }})
+    strategy:
+      fail-fast: false
+      matrix:
+        triplet: [x86_64-w64-mingw32, i686-w64-mingw32]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MinGW
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-mingw-w64 binutils-mingw-w64
+          sudo update-alternatives --set ${{ matrix.triplet }}-g++ /usr/bin/${{ matrix.triplet }}-g++-posix
+          sudo update-alternatives --set ${{ matrix.triplet }}-gcc /usr/bin/${{ matrix.triplet }}-gcc-posix
+      - name: Configure
+        run: |
+          cmake -S src -B src/build -DBUILD_FOR_SYSTEM_NAME=windows \
+            -DCMAKE_CXX_STANDARD=17 -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_SYSTEM_NAME=Windows \
+            -DCMAKE_C_COMPILER=${{ matrix.triplet }}-gcc \
+            -DCMAKE_CXX_COMPILER=${{ matrix.triplet }}-g++ \
+            -DCMAKE_RC_COMPILER=${{ matrix.triplet }}-windres \
+            -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+            -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+            -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+            -DCMAKE_C_STANDARD_LIBRARIES=-lssp \
+            -DCMAKE_CXX_STANDARD_LIBRARIES=-lssp
+      - name: Build (fails if the DLL imports a MinGW runtime)
+        run: cmake --build src/build --config Release -j4
+      - name: Show DLL imports
+        run: ${{ matrix.triplet }}-objdump -p $(find src/build -name '*electrum_libsparkmobile.dll' | head -1) | grep "DLL Name"

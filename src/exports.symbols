@@ -1,0 +1,16 @@
+_getFullViewKeyFromPrivateKeyData
+_deserializeFullViewKey
+_serializeFullViewKey
+_deleteFullViewKey
+_getAddress
+_getAddressFromFullViewKey
+_idAndRecoverCoin
+_idAndRecoverCoinByFullViewKey
+_cCreateSparkMintRecipients
+_cCreateSparkSpendTransaction
+_serializeMintContext
+_isValidSparkAddress
+_hashTags
+_hashTag
+_estimateSparkFee
+_native_free
